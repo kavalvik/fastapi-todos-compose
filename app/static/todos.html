@@ -1,0 +1,538 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Менеджер задач с Аутентификацией</title>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 0 auto; padding: 20px; }
+        .container { background: #f5f5f5; padding: 20px; margin: 10px 0; border-radius: 10px; }
+        input, textarea, select { width: 100%; padding: 8px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        button { padding: 10px 15px; margin: 5px; border: none; border-radius: 5px; cursor: pointer; }
+        .btn-primary { background: #007bff; color: white; }
+        .btn-success { background: #28a745; color: white; }
+        .btn-warning { background: #ffc107; color: black; }
+        .btn-danger { background: #dc3545; color: white; }
+        .todo-item { background: white; padding: 15px; margin: 10px 0; border-radius: 5px; border-left: 4px solid #007bff; }
+        .completed { border-left-color: #28a745; opacity: 0.7; }
+        .tag { background: #e9ecef; padding: 2px 8px; margin: 2px; border-radius: 12px; font-size: 12px; display: inline-block; }
+        .error { color: #dc3545; font-size: 14px; margin-top: 5px; }
+        .success { color: #28a745; font-size: 14px; margin-top: 5px; }
+        .auth-section { background: #e9ecef; padding: 15px; margin: 10px 0; border-radius: 5px; }
+        .hidden { display: none; }
+        .deadline { 
+            color: #dc3545; 
+            font-weight: bold; 
+            margin: 5px 0;
+        }
+        .deadline-passed { 
+            color: #dc3545; 
+            background: #ffe6e6; 
+            padding: 5px 10px; 
+            border-radius: 4px; 
+            font-weight: bold;
+        }
+        .todo-meta {
+            font-size: 12px; 
+            color: #6c757d; 
+            margin-top: 8px;
+            border-top: 1px solid #eee;
+            padding-top: 8px;
+        }
+    </style>
+</head>
+<body>
+    <h1>🔐 Менеджер задач с Аутентификацией</h1>
+
+    <!-- Секция аутентификации -->
+    <div class="container auth-section" id="authSection">
+        <h3>🔑 Вход в систему</h3>
+        <div id="loginForm">
+            <input type="text" id="loginUsername" placeholder="Имя пользователя">
+            <input type="password" id="loginPassword" placeholder="Пароль">
+            <button class="btn-primary" onclick="login()">Войти</button>
+            <button class="btn-warning" onclick="showRegister()">Регистрация</button>
+        </div>
+        
+        <div id="registerForm" class="hidden">
+            <input type="text" id="regUsername" placeholder="Имя пользователя">
+            <input type="email" id="regEmail" placeholder="Email">
+            <input type="password" id="regPassword" placeholder="Пароль">
+            <button class="btn-success" onclick="register()">Зарегистрироваться</button>
+            <button class="btn-warning" onclick="showLogin()">Назад к входу</button>
+        </div>
+        
+        <div id="authMessage" class="error"></div>
+    </div>
+
+    <!-- Основной интерфейс (показывается после входа) -->
+    <div id="appInterface" class="hidden">
+        <div class="container">
+            <h3>👋 Добро пожаловать, <span id="userName"></span>!</h3>
+            <button class="btn-danger" onclick="logout()">Выйти</button>
+            <button class="btn-warning" onclick="showToken()">Показать токен</button>
+            <!-- ДОБАВЬТЕ ЭТУ КНОПКУ: -->
+            <button id="adminAllTodosBtn" class="btn-success" onclick="loadAllTodos()" style="display: none;">
+                👑 Показать все задачи
+            </button>
+        </div>
+
+        <!-- Форма создания задачи -->
+        <div class="container">
+            <h3>➕ Добавить новую задачу</h3>
+            <input type="text" id="title" placeholder="Название задачи" required>
+            <textarea id="description" placeholder="Описание"></textarea>
+            
+            <label for="priority">Приоритет:</label>
+            <select id="priority">
+                <option value="1">🔴 Высокий</option>
+                <option value="2">🟡 Средний</option> 
+                <option value="3" selected>🟢 Низкий</option>
+            </select>
+
+            <label for="deadline">📅 Дедлайн:</label>
+            <input type="datetime-local" id="deadline">
+            <small style="color: #666; display: block; margin-top: -5px; margin-bottom: 10px;">
+                Формат: гггг-мм-дд чч:мм
+            </small>
+            
+            <input type="text" id="tags" placeholder="Теги через запятую">
+            
+            <button class="btn-primary" onclick="createTodo()">✅ Создать задачу</button>
+            <div id="errorMessage" class="error"></div>
+            <div id="successMessage" class="success"></div>
+        </div>
+
+        <!-- Список задач -->
+        <div class="container">
+            <h3>📋 Мои задачи</h3>
+            <button class="btn-success" onclick="loadTodos()">🔄 Обновить список</button>
+            <button class="btn-warning" onclick="clearForm()">🧹 Очистить форму</button>
+            <div id="todosList"></div>
+            <!-- 📁 ДОБАВЬТЕ ЭТОТ БЛОК -->
+            <div id="adminFilters" style="display: none; background: #fff3cd; padding: 15px; margin: 10px 0; border-radius: 5px;">
+                <h4>👑 Фильтры админа (по всем задачам)</h4>
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <label>
+                        <input type="checkbox" id="filterCompleted"> Выполненные
+                    </label>
+                    <select id="filterPriority">
+                        <option value="">Все приоритеты</option>
+                        <option value="1">🔴 Высокий</option>
+                        <option value="2">🟡 Средний</option>
+                        <option value="3">🟢 Низкий</option>
+                    </select>
+                    <button class="btn-success" onclick="applyAdminFilters()">Применить фильтры</button>
+                    <button class="btn-warning" onclick="resetAdminFilters()">Сбросить</button>
+                </div>
+            </div>
+            
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:8000';
+        let currentToken = null;
+        let currentTodos = [];
+        let currentUser = null;
+
+        // 🔐 Функции аутентификации
+        async function register() {
+            const username = document.getElementById('regUsername').value;
+            const email = document.getElementById('regEmail').value;
+            const password = document.getElementById('regPassword').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/register`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, email, password })
+                });
+
+                if (response.ok) {
+                    showMessage('✅ Регистрация успешна! Теперь войдите.', 'success');
+                    showLogin();
+                } else {
+                    const error = await response.json();
+                    showMessage('❌ Ошибка: ' + error.detail, 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Ошибка сети: ' + error.message, 'error');
+            }
+        }
+
+        async function login() {
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            try {
+                const response = await fetch(`${API_BASE}/login`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+                    currentToken = data.access_token;
+                    currentUser = data.username;
+            
+                    // 🔽 ВАЖНО: ОБНОВЛЯЕМ ИНТЕРФЕЙС ПОЛЬЗОВАТЕЛЯ
+                    document.getElementById('userName').textContent = currentUser;
+            
+                    // 🔽 ВАЖНО: СКРЫВАЕМ ФОРМУ ВХОДА И ПОКАЗЫВАЕМ ИНТЕРФЕЙС ЗАДАЧ
+                    document.getElementById('authSection').classList.add('hidden');
+                    document.getElementById('appInterface').classList.remove('hidden');
+
+                    // ПОКАЗЫВАЕМ КНОПКУ АДМИНА ТОЛЬКО ЕСЛИ РОЛЬ = 'admin'
+                    const adminBtn = document.getElementById('adminAllTodosBtn');
+                    const adminFilters = document.getElementById('adminFilters');
+    
+                    if (data.role === 'admin') {
+                        adminBtn.style.display = 'inline-block';
+                        adminFilters.style.display = 'block';  // ← ПОКАЗЫВАЕМ ФИЛЬТРЫ
+                    } else {
+                        adminBtn.style.display = 'none';
+                        adminFilters.style.display = 'none';   // ← СКРЫВАЕМ ФИЛЬТРЫ
+                    }
+            
+                    showMessage('✅ Вход выполнен!', 'success');
+                    loadTodos();
+            
+                 } else {
+                    const error = await response.json();
+                    showMessage('❌ Ошибка входа: ' + error.detail, 'error');
+                }
+            } catch (error) {
+                showMessage('❌ Ошибка сети: ' + error.message, 'error');
+            }
+        }
+
+        function logout() {
+            currentToken = null;
+            currentUser = null;
+            document.getElementById('authSection').classList.remove('hidden');
+            document.getElementById('appInterface').classList.add('hidden');
+            document.getElementById('todosList').innerHTML = '';
+            showMessage('👋 Вы вышли из системы', 'success');
+        }
+
+        function showRegister() {
+            document.getElementById('loginForm').classList.add('hidden');
+            document.getElementById('registerForm').classList.remove('hidden');
+        }
+
+        function showLogin() {
+            document.getElementById('registerForm').classList.add('hidden');
+            document.getElementById('loginForm').classList.remove('hidden');
+        }
+
+        function showToken() {
+            if (currentToken) {
+                alert('Ваш JWT токен:\n' + currentToken);
+            }
+        }
+
+        function showMessage(message, type) {
+            const element = document.getElementById('authMessage');
+            element.textContent = message;
+            element.className = type;
+        }
+
+        // 📝 Функции работы с задачами (обновленные с аутентификацией)
+               
+        async function loadTodos() {
+            if (!currentToken) return;
+            
+            try {
+                const response = await fetch(`${API_BASE}/todos`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+                
+                if (response.ok) {
+                    currentTodos = await response.json();
+                    displayTodos(currentTodos);
+                    showAppSuccess(`✅ Загружено ${currentTodos.length} задач`);
+                } else {
+                    const error = await response.json();
+                    showAppError('Ошибка загрузки: ' + error.detail);
+                }
+            } catch (error) {
+                showAppError('Ошибка сети: ' + error.message);
+            }
+        }
+
+        async function createTodo() {
+            if (!currentToken) {
+                showAppError('❌ Сначала войдите в систему!');
+                return;
+            }
+
+            const title = document.getElementById('title').value.trim();
+            const description = document.getElementById('description').value.trim();
+            const priority = parseInt(document.getElementById('priority').value);
+            const tagsInput = document.getElementById('tags').value.trim();
+            const deadlineInput = document.getElementById('deadline').value;
+
+            if (!title) {
+                showAppError('Введите название задачи!');
+                return;
+            }
+
+            const tags = tagsInput ? tagsInput.split(',').map(tag => tag.trim()).filter(tag => tag) : [];
+            const deadline = deadlineInput || null;
+
+            try {
+                showAppError(''); // Очищаем предыдущие ошибки
+                const response = await fetch(`${API_BASE}/todos`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({
+                        title,
+                        description: description || null,
+                        priority,
+                        tags,
+                        deadline
+                    })
+                });
+                
+                console.log('Статус ответа:', response.status); // Для отладки
+
+                if (response.ok) {
+                    clearForm();
+                    showAppSuccess('✅ Задача создана!');
+                    loadTodos();
+                } else {
+                    const error = await response.json();
+                    showAppError('Ошибка создания: ' + error.detail);
+                }
+            } catch (error) {
+                showAppError('Ошибка сети: ' + error.message);
+            }
+        }
+
+        // 📊 Отображение задач
+        function displayTodos(todos) {
+            const container = document.getElementById('todosList');
+            
+            if (todos.length === 0) {
+                container.innerHTML = '<p>🎉 Нет задач. Добавьте первую задачу!</p>';
+                return;
+            }
+
+            container.innerHTML = todos.map(todo => {
+                // Форматируем дату создания
+                const createdDate = new Date(todo.created_at);
+                const createdStr = createdDate.toLocaleString('ru-RU');
+        
+                // Форматируем дедлайн если он есть
+                let deadlineHtml = '';
+                if (todo.deadline) {
+                    const deadlineDate = new Date(todo.deadline);
+                    const now = new Date();
+                    const isOverdue = !todo.completed && deadlineDate < now;
+                    const deadlineStr = deadlineDate.toLocaleString('ru-RU');
+            
+                    deadlineHtml = `
+                        <div class="${isOverdue ? 'deadline-passed' : 'deadline'}">
+                            📅 Дедлайн: ${deadlineStr}
+                            ${isOverdue ? ' ⚠️ ПРОСРОЧЕНО!' : ''}
+                        </div>
+                    `;
+                }
+
+                // Форматируем приоритет
+                const priorityText = 
+                    todo.priority === 1 ? '🔴 Высокий' :
+                    todo.priority === 2 ? '🟡 Средний' : '🟢 Низкий';
+
+                return `
+            
+                <div class="todo-item ${todo.completed ? 'completed' : ''}">                                     
+                    <h4>
+                        <span style="cursor: pointer;" onclick="toggleTodo('${todo.id}')">
+                            ${todo.completed ? '✅' : '⭕'} 
+                        </span>
+                        ${todo.title}
+                    </h4>
+                    ${todo.description ? `<p>📝 ${todo.description}</p>` : ''}
+                    <p>🎯 Приоритет: ${priorityText}</p>
+                    ${deadlineHtml}
+                    ${todo.tags && todo.tags.length > 0 ? `
+                        <div>🏷️ Теги: ${todo.tags.map(tag => `<span class="tag">#${tag}</span>`).join('')}</div>
+                    ` : ''}
+                    <div class="todo-meta">
+                        📅 Создано: ${createdStr}
+                        ${todo.updated_at ? `<br>✏️ Обновлено: ${new Date(todo.updated_at).toLocaleString('ru-RU')}` : ''}
+                    </div>
+                    <div style="margin-top: 10px;">
+                        <button class="btn-warning" onclick="toggleTodo('${todo.id}')">
+                            ${todo.completed ? '❌ Не выполнена' : '✅ Выполнена'}
+                        </button>
+                        <button class="btn-danger" onclick="deleteTodo('${todo.id}')">
+                            🗑️ Удалить
+                        </button>
+                    </div>
+                </div>
+                `;
+            }).join('');
+        }
+
+        // 1. Добавьте эту функцию для загрузки всех задач:
+        async function loadAllTodos() {
+            if (!currentToken) return;
+    
+            try {
+                // Используем новый эндпоинт для админа
+                const response = await fetch(`${API_BASE}/admin/todos/filter?limit=100`, {
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+        
+                if (response.ok) {
+                    const allTodos = await response.json();
+                    displayTodos(allTodos);
+                    showAppSuccess(`✅ Загружены ВСЕ задачи (${allTodos.length} шт.)`);
+                }
+            } catch (error) {
+                showAppError('Ошибка сети: ' + error.message);
+            }
+        }
+
+        async function toggleTodo(todoId) {
+            if (!currentToken) return;
+
+            try {
+                // Найдем задачу в текущем списке
+                const todo = currentTodos.find(t => t.id === todoId);
+                if (!todo) {
+                    showAppError('Задача не найдена');
+                    return;
+                }
+        
+                const response = await fetch(`${API_BASE}/todos/${todoId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${currentToken}`
+                    },
+                    body: JSON.stringify({
+                        completed: !todo.completed,
+                        title: todo.title,
+                        description: todo.description,
+                        priority: todo.priority,
+                        tags: todo.tags || [],
+                        deadline: todo.deadline
+                    })
+                });
+
+                if (response.ok) {
+                    showAppSuccess(`✅ Задача отмечена как ${!todo.completed ? 'выполненная' : 'невыполненная'}!`);
+                    loadTodos();
+                } else {
+                    const error = await response.json();
+                    showAppError('Ошибка обновления: ' + error.detail);
+                }
+            } catch (error) {
+                console.error('Ошибка:', error);
+                showAppError('Ошибка обновления: ' + error.message);
+            }
+        }
+
+        async function deleteTodo(todoId) {
+            if (!currentToken) return;
+            
+            if (!confirm('Удалить эту задачу?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/todos/${todoId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${currentToken}`
+                    }
+                });
+
+                if (response.ok) {
+                    showAppSuccess('✅ Задача удалена!');
+                    loadTodos();
+                }
+            } catch (error) {
+                showAppError('Ошибка удаления: ' + error.message);
+            }
+        }
+        
+        // 🔧 Функции для фильтрации админа
+        function applyAdminFilters() {
+            if (!currentToken) return;
+    
+            const completed = document.getElementById('filterCompleted').checked;
+            const priority = document.getElementById('filterPriority').value;
+    
+            let url = `${API_BASE}/admin/todos/filter?`;
+            const params = [];
+    
+            if (completed) params.push('completed=true');
+            if (priority) params.push(`priority=${priority}`);
+    
+            url += params.join('&');
+            if (params.length === 0) url = `${API_BASE}/admin/todos/filter?limit=100`;
+    
+            // Загружаем отфильтрованные задачи
+            fetch(url, {
+                headers: { 'Authorization': `Bearer ${currentToken}` }
+            })
+            .then(response => response.json())
+            .then(todos => {
+                displayTodos(todos);
+                showAppSuccess(`✅ Отфильтровано: ${todos.length} задач`);
+            })
+            .catch(error => showAppError('Ошибка: ' + error.message));
+        }
+
+        function resetAdminFilters() {
+            document.getElementById('filterCompleted').checked = false;
+            document.getElementById('filterPriority').value = '';
+            loadAllTodos(); // Загружаем все задачи без фильтров
+        }
+
+
+        // 🛠️ Вспомогательные функции
+        function clearForm() {
+            document.getElementById('title').value = '';
+            document.getElementById('description').value = '';
+            document.getElementById('priority').value = '3';
+            document.getElementById('tags').value = '';
+            document.getElementById('deadline').value = '';
+            clearAppMessages();
+        }
+
+        function showAppError(message) {
+            document.getElementById('errorMessage').textContent = message;
+            document.getElementById('successMessage').textContent = '';
+        }
+
+        function showAppSuccess(message) {
+            document.getElementById('successMessage').textContent = message;
+            document.getElementById('errorMessage').textContent = '';
+        }
+
+        function clearAppMessages() {
+            document.getElementById('errorMessage').textContent = '';
+            document.getElementById('successMessage').textContent = '';
+        }
+
+        // Автоматически попробуем войти если есть данные в форме
+        //setTimeout(() => {
+            //if (document.getElementById('loginUsername').value && 
+                //document.getElementById('loginPassword').value) {
+                //login();
+            //}
+        //}, 1000);
+    </script>
+</body>
+</html>

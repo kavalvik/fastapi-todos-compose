@@ -1,0 +1,31 @@
+#version: '3.8'
+
+services:
+  # Сервис базы данных PostgreSQL
+  db:
+    image: postgres:15-alpine
+    container_name: todos-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: valera           # Имя пользователя БД
+      POSTGRES_PASSWORD: admin123  # 🔐 ЗАМЕНИ НА СВОЙ ПАРОЛЬ!
+      POSTGRES_DB: todos              # Имя базы данных
+    volumes:
+      - postgres_data:/var/lib/postgresql/data  # Том для постоянного хранения данных БД
+
+  # Сервис вашего FastAPI приложения
+  web:
+    build: .                          # Собираем образ из Dockerfile в текущей папке
+    container_name: todos-app
+    restart: unless-stopped
+    depends_on:
+      - db                            # Гарантируем запуск БД перед приложением
+    environment:
+      # Ключевая настройка: URL для подключения к БД. Обрати внимание на host=db!
+      DATABASE_URL: "postgresql://valera:admin123@db:5432/todos"
+    ports:
+      - "8000:8000"                   # Пробрасываем порт приложения на хост-машину
+
+# Определяем именованный том для хранения данных БД
+volumes:
+  postgres_data:
